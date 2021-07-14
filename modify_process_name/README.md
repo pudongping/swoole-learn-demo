@@ -100,3 +100,107 @@ array(14) {
 }
 
 ```
+
+## 正常退出 task 进程时
+
+```shell
+
+kill -9 674
+
+# server.php 输出如下内容
+
+[2021-07-14 16:04:15 $669.0]	WARNING	check_worker_exit_status: worker#6[pid=674] abnormal exit, status=0, signal=9
+worker error =====> worker_id ==> 6 pid ==> 674 code ==> 0 signal ==> 9
+task_pid ======> 732 =====> task_id ======> 6
+
+# 我们可以看到 swoole 会重新启动一个新的 task 进程 （新启动的一个 task 进程的 pid 为 732）
+
+root@2c73d27f94b1:/var/www# ps -aux | grep php | grep -v grep
+root       668  0.0  1.5 683488 31024 pts/1    Sl+  15:53   0:00 php:swoole:master
+root       669  0.0  0.5 390644 11396 pts/1    S+   15:53   0:00 php:swoole:manager
+root       675  0.0  0.4 391448 10120 pts/1    S+   15:53   0:00 php:swoole:task
+root       676  0.0  0.4 391448 10120 pts/1    S+   15:53   0:00 php:swoole:task
+root       677  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       678  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       679  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       680  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       681  0.0  0.6 391408 13508 pts/1    S+   15:53   0:00 php:swoole:work
+root       682  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       732  0.0  0.4 391448  9640 pts/1    S+   16:04   0:00 php:swoole:task
+
+root@2c73d27f94b1:/var/www# pstree -p 668
+php(668)─┬─php(669)─┬─php(675)
+         │          ├─php(676)
+         │          ├─php(677)
+         │          ├─php(678)
+         │          ├─php(679)
+         │          ├─php(680)
+         │          ├─php(681)
+         │          ├─php(682)
+         │          └─php(732)
+         ├─{php}(670)
+         ├─{php}(671)
+         ├─{php}(672)
+         └─{php}(673)
+
+```
+
+## 异常退出一个 work 进程时
+
+```shell
+
+kill -15 677
+
+# server.php 输出如下内容
+
+worker stop =====> worker_id ==> 0
+worker_pid =====> 786 =====> worker_id =====> 0
+
+# 我们可以看到 swoole 会重新启动一个新的 work 进程 （新启动的一个 work 进程的 pid 为 786）
+
+root@2c73d27f94b1:/var/www# ps -aux | grep php | grep -v grep
+root       668  0.0  1.5 683488 31024 pts/1    Sl+  15:53   0:00 php:swoole:master
+root       669  0.0  0.6 390644 13260 pts/1    S+   15:53   0:00 php:swoole:manager
+root       675  0.0  0.4 391448 10120 pts/1    S+   15:53   0:00 php:swoole:task
+root       676  0.0  0.4 391448 10120 pts/1    S+   15:53   0:00 php:swoole:task
+root       678  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       679  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       680  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       681  0.0  0.6 391408 13508 pts/1    S+   15:53   0:00 php:swoole:work
+root       682  0.0  0.6 391448 13056 pts/1    S+   15:53   0:00 php:swoole:work
+root       732  0.0  0.4 391448  9640 pts/1    S+   16:04   0:00 php:swoole:task
+root       786  0.0  0.6 391448 12456 pts/1    S+   16:09   0:00 php:swoole:work
+
+root@2c73d27f94b1:/var/www# pstree -p 668
+php(668)─┬─php(669)─┬─php(675)
+         │          ├─php(676)
+         │          ├─php(678)
+         │          ├─php(679)
+         │          ├─php(680)
+         │          ├─php(681)
+         │          ├─php(682)
+         │          ├─php(732)
+         │          └─php(786)
+         ├─{php}(670)
+         ├─{php}(671)
+         ├─{php}(672)
+         └─{php}(673)
+
+```
+
+## 正常退出主进程时
+
+```shell
+
+kill -9 668
+
+# server.php 输出如下内容
+
+worker stop =====> worker_id ==> 3
+worker stop =====> worker_id ==> 0
+worker stop =====> worker_id ==> 4
+worker stop =====> worker_id ==> 1
+worker stop =====> worker_id ==> 2
+worker stop =====> worker_id ==> 5
+
+```
