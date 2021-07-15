@@ -6,4 +6,4 @@
 ## 目录
 
 - [设置 Swoole\Server 的属性并获取属性](./fetch_property)
-- [修改进程名称](./modify_process_name)
+- [修改 Swoole\Server 进程名称以及打印进程的 pid](./modify_process_name)

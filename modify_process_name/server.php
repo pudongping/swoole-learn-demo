@@ -13,7 +13,12 @@ $setting = [
     'worker_num' => 6,  // 开启 6 个 worker 进程
     'reactor_num' => 4,  // 开启 4 个线程
     'task_worker_num' => 3,  // 开启 3 个 task 进程
-    // 'max_request' => 5,  // 最大请求数
+    // 'max_request' => 5,  // 表示 worker 进程在处理完 5 次请求后结束运行，manager 会重新创建一个 worker 进程。此选项用来防止 worker 进程内存溢出
+    // 'max_conn' => 10000,  // 设置允许维持 10000 个 tcp 连接，超过 10000 后，新进入的连接会被拒绝，最大不能超过操作系统的 ulimit -n 的值
+    // 'daemonize' => true,  // 作为守护进程运行
+    // 'heartbeat_check_interval' => 30,  // 每隔 30 秒检测一次，swoole 会轮询所有 tcp 连接，将超过心跳时间的连接关闭掉
+    // 'heartbeat_idle_time' => 60,  // tcp 连接的最大闲置时间，单位秒，如果某 fd 最后一次发包距离现在的时间超过 heartbeat_idle_time 会把这个连接关闭掉
+    // 'enable_coroutine' => false,  // 默认为 true，设置为 false ，则关闭掉内置协程
 ];
 
 $server->set($setting);
