@@ -1,6 +1,6 @@
 <?php
 /**
- *
+ * 服务端向客户端发送数据或者文件
  *
  * Created by PhpStorm
  * User: Alex
