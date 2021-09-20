@@ -6,7 +6,7 @@
 
 ```shell
 
-root@dc705af7d5da:/var/www/swoole-learn-demo/task_and_taskwait_usage# php server.php
+root@dc705af7d5da:/var/www/swoole-learn-demo/task_and_taskwait_usage# php task.php
 
 
 hello Alex!  # 这里会立刻执行
