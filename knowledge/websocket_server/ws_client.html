@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>websocket client</title>
+</head>
+<body>
+
+</body>
+
+<script>
+
+    var ws = new WebSocket('ws://127.0.0.1:5200');
+
+    ws.onopen = () => {
+        console.log('connected success');
+        ws.send('hello websocket server');
+    };
+
+    ws.onmessage = evt => {
+        console.log('服务端发送过来的消息为 ====> ' + evt.data);
+    };
+
+    ws.onclose = () => {
+        console.log('客户端已经被关闭');
+    };
+
+</script>
+
+</html>
