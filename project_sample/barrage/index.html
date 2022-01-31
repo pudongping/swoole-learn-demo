@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>弹幕</title>
+</head>
+<body>
+
+<div style="width: 600px; height: 500px;" id="dplayer"></div>
+
+</body>
+</html>
+
+<script src="./js/hls.js/hls.min.js"></script>
+<script src="./js/dplayer/DPlayer.min.js"></script>
+
+<!--<script>
+    const dp = new DPlayer({
+        container: document.getElementById('dplayer'),
+        video: {
+            url: './video/demo.mp4',
+        },
+    });
+</script>-->
+
+<script>
+    const ws = new WebSocket('ws://127.0.0.1:5200');
+
+    const dp = new DPlayer({
+        container: document.getElementById('dplayer'),
+
+        live: false,  // 开启直播模式
+        danmaku: true,  // 显示弹幕
+        apiBackend: {
+            read: function () {
+
+                // 开启 websocket
+                ws.onopen = () => {
+                    console.log('连接成功');
+                }
+
+                console.log(2222)
+            },
+            send: function (endpoint) {
+                let sendText = endpoint.data.text;  // 发送弹幕的文本内容
+                ws.send(sendText);
+                console.log('发送弹幕消息', endpoint)
+
+            },
+        },
+
+        video: {
+            url: './video/demo.mp4',
+        },
+
+        // 要是想开启直播模式的话，需要使用下面的 m3u8 格式
+        // video: {
+        //     url: 'http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8',
+        //     // url: 'http://live.xmcdn.com/live/45/64.m3u8',
+        //     type: 'hls',
+        // },
+
+    });
+
+    ws.onmessage = evt => {
+        const danmaku = {
+            text: evt.data,
+            color: '#3bc3b3',
+            type: 'right',
+        };
+        dp.danmaku.draw(danmaku);
+    };
+
+
+
+</script>
