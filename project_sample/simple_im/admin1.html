@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Server</title>
+</head>
+<body>
+<script>
+    window.onload = function () {
+        var role = prompt("请输入你的角色 user 或者 admin");
+        var input = document.getElementById("input");
+        input.focus();
+        var sendUserId = 1;
+        var maxReconnectTimes = 5;
+        var maxCounter = 0;
+
+        // 客服 token
+        let token = 'admin_token_1';
+        // 客服类型
+        let type = 'admin';
+        // token 和 type 参数为必填项
+        let wsUrl = 'ws://127.0.0.1:5200?token=' + token + '&type=' + type;
+
+        var socket = null,  // ws 连接对象
+            lockReconnect = false,  // 避免 ws 重复连接加锁
+            reconnectTimer = null,  // 重连计时器
+            reconnectTimeout = 4000;  // 多久后重连，单位毫秒 ms
+
+        createWebSocket();
+
+        // 建立 ws 连接
+        function createWebSocket() {
+            try {
+
+                if ('WebSocket' in window) {
+                    socket = new WebSocket(wsUrl);
+                } else if ('MozWebSocket' in window) {
+                    socket = new MozWebSocket(wsUrl);
+                } else {
+                    console.error('你的浏览器不支持 websocket 协议,建议使用新版谷歌、火狐等浏览器，请勿使用 IE10 以下浏览器，360 浏览器请使用极速模式，不要使用兼容模式！');
+                    return false;
+                }
+
+                init();
+
+            } catch (e) {
+                console.error('catch err => ', e);
+                reconnect();  // 进行重连操作
+            }
+        };
+
+        // 封装 ws 监听事件
+        function init() {
+
+            // 连接建立时触发
+            socket.onopen = event => {
+                console.log("Connection open ...");
+                // 心跳检测重置
+                heartBeatCheck.reset().start();
+            };
+
+            // 连接发生错误时触发
+            socket.onerror = event => {
+                console.error('ws error ====> ', event);
+                reconnect();  // 进行重连操作
+            };
+
+            // 接收到服务端推送时执行
+            socket.onmessage = event => {
+                // 心跳检测重置（客户端能够收到消息，证明当前连接是正常的）
+                heartBeatCheck.reset().start();
+
+                let ret = JSON.parse(event.data);
+                console.log('ws 返回值 =====> ', ret);
+                let {code, msg: notice, data} = ret;
+                let message = '====> ' + notice + ' => ';
+
+                if (200 === code) {
+                    if (data.constructor === Object) {  // 返回 data 为对象时，则为聊天消息
+
+                        let identity = '';
+                        if (1 === data.send_user_type) {  // 发送者身份,1:用户,2:后台客服
+                            identity = 'left ';  // 用户消息在左边
+                        } else if (2 === data.send_user_type) {
+                            identity = 'right';  // 客服消息在右边
+                        }
+
+                        message += data.id + ' [ ' + identity + ' ' + data.send_time + ' ]，';
+                        message += 'content => [ ' + data.content + ' ]，';
+                        message += 'user  => [ ' + data.user.name + ' ]，';
+                        message += 'admin => [ ' + data.admin.name + ' ]；';
+                    }
+                } else {  // 此时的 code 为 400 （有异常信息时）
+
+                }
+
+                if ('pong' === notice) {  // 心跳反馈不处理
+                    return false;
+                }
+
+                let node = document.createTextNode(message);
+                let div = document.createElement("div");
+                div.appendChild(node);
+                document.body.insertBefore(div, input);
+                input.scrollIntoView();
+            };
+
+            // 连接关闭时触发
+            socket.onclose = event => {
+                console.log("Connection closed ...");
+                heartBeatCheck.reset();  // 关闭掉心跳检测相关定时器
+                reconnect();  // 进行重连操作
+            };
+
+            // 监听浏览器窗口关闭事件，当浏览器窗口关闭时，主动去关闭 ws 连接，防止连接还没有断开就关闭窗口，造成服务端出现异常
+            window.onbeforeunload = () => {
+                socket.close();
+            };
+
+        };
+
+        // 重连
+        function reconnect() {
+
+            if (lockReconnect) return;  // 已经重连，则不再重连
+
+            lockReconnect = true;  // 重连时，加锁，防止多次重连
+            console.log('次数' , maxCounter);
+            maxCounter++;
+            if (maxCounter >= maxReconnectTimes) {
+                console.log('停止重连');
+                return;
+            }
+
+            // 没连上会一直重连，设置延迟，以避免请求过多
+            reconnectTimer && clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+                console.log('正在重连中……');
+                lockReconnect = false;  // 释放重连锁
+                createWebSocket();  // 重新连接
+            }, reconnectTimeout);
+
+        };
+
+        // 心跳检测
+        // 实现思路：
+        /*
+         * 每隔一段固定的时间，向服务器端发送一个 ping 数据（或者随便发送一条测试数据，前后端协调好就行），
+         * 如果在正常的情况下，服务器会返回一个 pong 给客户端，如果客户端通过 onmessage 事件能监听到的话，说明请求正常，
+         * 这里我们使用了一个定时器，每隔 5 秒的情况下，如果是网络断开的情况下，在指定的时间内服务器端并没有返回心跳响应消息，因此证明服务器端断开了，
+         * 因此这个时候我们使用 socket.close() 方法主动去关闭客户端 websocket 连接，在一段时间后(在不同的浏览器下，时间是不一样的，firefox 响应更快)，
+         * 可以通过 onclose 事件监听到。因此在 onclose 事件内，我们可以调用 reconnect 方法进行重连操作。
+         * */
+        var heartBeatCheck = {
+            pingTimeout: 5000,  // 心跳连接时间
+            serverTimeout: 5000,  // 服务器超时时间
+            heartTimer: null,  // 心跳定时器
+            serverTimer: null,  // ws 服务器超时定时器
+            reset: function () {  // 重置心跳定时器和 ws 服务器超时定时器
+                clearTimeout(this.heartTimer);
+                clearTimeout(this.serverTimer);
+                return this;
+            },
+            start: function () {  // 开始发送心跳检测
+                var that = this;
+                this.heartTimer && clearTimeout(this.heartTimer);
+                this.serverTimer && clearTimeout(this.serverTimer);
+
+                // 发送心跳
+                this.heartTimer = setTimeout(() => {
+                    let data = {
+                        event: 'heart_beat',  // 事件名称：心跳检测
+                    };
+                    socket.send(JSON.stringify(data));
+                    console.log('💗 pong! pong! pong!');
+
+                    // 如果网络断开的情况下，在 that.serverTimeout 时间内，服务器端没有返回心跳响应，则证明后端 ws 服务已经主动断开
+                    // 亦及 serverTimer 没有被重置 （有消息反馈时，onmessage 事件已经将 serverTimer 定时器 clearTimeout）
+                    that.serverTimer = setTimeout(() => {
+                        console.log('客户端主动关闭 ws 连接');
+                        socket.close();  // 主动去触发客户端 socket.onclose 事件，进行重连
+                    }, that.serverTimeout);
+
+                }, this.pingTimeout);
+
+            },
+        };
+
+
+        input.onchange = () => {
+            let msg = input.value;  // 需要发送的消息内容
+
+            let data = {
+                event: 'service_chat',  // 事件名称：用户和客服点对点发送消息
+                receiver: {
+                    id: sendUserId,  // 接收者用户id（这里为用户 id）
+                    type: 'user',  // 这里暂且为 user，方便以后扩展 user_to_user、admin_to_admin 故留
+                },
+                body: {
+                    type: 'text',  // text-文字消息 keywords-关键字消息 img-图片消息 video-视频消息
+                    content: msg,  // 消息内容
+                }
+            };
+
+            /*
+            * 注意：客服端是没有关键字消息的
+            *
+            *
+            * 如果是发送 [keywords-关键字消息] 则，body.type 为 keywords ，切 body.content 为关键字的内容
+            * 如果是发送 [img-图片消息] 则，body.type 为 img ，切 body.content 为图片的 url 地址
+            * 如果是发送 [video-视频消息] 则，body.type 为 video ，切 body.content 为视频的 url 地址
+            * */
+
+            // 将输入框变更信息通过 send 方法发送到服务器
+            socket.send(JSON.stringify(data));
+            input.value = "";
+        };
+
+    }
+</script>
+<input id="input" style="width: 100%;">
+</body>
+</html>
