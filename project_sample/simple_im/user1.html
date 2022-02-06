@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Client</title>
+</head>
+<body>
+<script>
+
+    window.onload = () => {
+
+        var role = prompt("请输入你的角色 user 或者 admin");
+        var input = document.getElementById("input");
+        input.focus();
+        var isClosed = false;
+        var sendAdminId = 1;  // 这里假设给客服 id 为 1 的人发送消息
+
+        // 用户的 token
+        let token = 'user_token_1';
+        // 用户类型
+        let type = 'user';
+        // token 和 type 参数为必填项
+        let wsUrl = 'ws://127.0.0.1:5200?token=' + token + '&type=' + type;
+
+        // 初始化客户端套接字并建立连接
+        var socket = null;
+        if ('WebSocket' in window) {
+            socket = new WebSocket(wsUrl);
+        } else if ('MozWebSocket' in window) {
+            socket = new MozWebSocket(wsUrl);
+        } else {
+            console.error('你的浏览器不支持 websocket 协议,建议使用新版谷歌、火狐等浏览器，请勿使用 IE10 以下浏览器，360 浏览器请使用极速模式，不要使用兼容模式！');
+            return false;
+        }
+
+        // 连接建立时触发
+        socket.onopen = event => {
+            console.log("Connection open ...");
+        };
+
+        // 连接发生出错时触发
+        socket.onerror = event => {
+            console.error('ws error ====> ', event);
+        };
+
+        input.onchange = () => {
+            let msg = input.value;  // 需要发送的消息内容
+
+            let data = {
+                event: 'service_chat',  // 事件名称：用户和客服点对点发送消息
+                receiver: {
+                    id: sendAdminId,  // 接收者用户id（这里为客服 id）
+                    type: 'admin',  // 这里暂且为 admin，方便以后扩展 user_to_user、admin_to_admin 故留
+                },
+                body: {
+                    type: 'text',  // text-文字消息 keywords-关键字消息 img-图片消息 video-视频消息
+                    content: msg,  // 消息内容
+                }
+            };
+
+            /*
+            * 如果是发送 [keywords-关键字消息] 则，body.type 为 keywords ，且 body.content 为关键字的内容
+            * 如果是发送 [img-图片消息] 则，body.type 为 img ，且 body.content 为图片的 url 地址
+            * 如果是发送 [video-视频消息] 则，body.type 为 video ，且 body.content 为视频的 url 地址
+            * */
+
+            // 将输入框变更信息通过 send 方法发送到 ws 服务器
+            socket.send(JSON.stringify(data));
+            input.value = "";
+        };
+
+        // 接收到服务端推送时执行
+        socket.onmessage = event => {
+
+            let ret = JSON.parse(event.data);
+            console.log('ws 服务器返回数据 =====> ', ret);
+            let {code, msg: notice, data} = ret;
+            let message = '====> ' + notice + ' => ';
+
+            if (200 === code) {
+
+                if (data.constructor === Object) {  // 返回 data 为对象时，则为聊天消息
+
+                    let identity = '';
+                    if (1 === data.send_user_type) {  // 发送者身份,1:用户,2:后台客服
+                        identity = 'right';  // 用户消息在右边
+                    } else if (2 === data.send_user_type) {
+                        identity = 'left ';  // 客服消息在左边
+                    }
+
+                    message += data.id + ' [ ' + identity + ' ' + data.send_time + ' ]，';
+                    message += 'content => [ ' + data.content + ' ]，';
+                    message += 'user  => [ ' + data.user.name + ' ]，';
+                    message += 'admin => [ ' + data.admin.name + ' ]；';
+                }
+            } else {  // 此时的 code 为 400 （有异常信息时）
+
+            }
+
+            if ('pong' === notice) {  // 心跳反馈不处理
+                return false;
+            }
+
+            let node = document.createTextNode(message);
+            let div = document.createElement("div");
+            div.appendChild(node);
+            document.body.insertBefore(div, input);
+            input.scrollIntoView();
+        };
+
+        // 连接关闭时触发
+        socket.onclose = event => {
+            isClosed = true;
+            console.log("Connection closed ...");
+        };
+
+        // 心跳检测
+        (heartBeatCheck = () => {
+            window.setInterval(() => {
+
+                let data = {
+                    event: 'heart_beat',  // 事件名称：心跳检测
+                };
+
+                if (! isClosed) {
+                    socket.send(JSON.stringify(data));
+                    console.log('💗 pong! pong! pong!');
+                }
+
+            }, 5000);
+        })();
+
+    }
+</script>
+<input id="input" style="width: 100%;">
+</body>
+</html>
